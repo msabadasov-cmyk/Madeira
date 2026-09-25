@@ -413,7 +413,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: FEX/build-ios
-          key: fex-${{ steps.revisions.outputs.fex }}-caspalstub-${{ env.CACHE_V }}
+          key: fex-${{ steps.revisions.outputs.fex }}-caspalstub-rpmguard-${{ env.CACHE_V }}
 
       # FEX fork bug: IosLogUnimplementedCASPAL (Arm64.cpp) sits OUTSIDE
       # every #ifdef FEX_IOS_HOST in that file, yet calls Win32 APIs —
@@ -448,6 +448,18 @@ jobs:
           print("stubbed IosLogUnimplementedCASPAL")
           PY
           grep -n -A4 "MADEIRA_CASPAL_STUB" FEX/FEXCore/Source/Utils/ArchHelpers/Arm64.cpp
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("FEX/FEXCore/Source/Utils/AllocatorHooks.cpp")
+          s = p.read_text()
+          old = "size_t malloc_usable_size(void* ptr) {\n  IOS_RPM_GUARD();\n#ifdef __APPLE__"
+          new = "size_t malloc_usable_size(void* ptr) {\n#ifdef __APPLE__"
+          if old not in s:
+              raise SystemExit("ERROR: FEX fallback guard block not found")
+          p.write_text(s.replace(old, new, 1))
+          print("removed rpm guard from non-rpmalloc fallback")
+          PY
+          grep -n -A4 "size_t malloc_usable_size" FEX/FEXCore/Source/Utils/AllocatorHooks.cpp
 
       - name: Configure FEX
         if: steps.fex.outputs.cache-hit != 'true'
