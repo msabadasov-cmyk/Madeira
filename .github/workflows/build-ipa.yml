@@ -219,6 +219,14 @@ jobs:
               raise SystemExit("ERROR: unexpected Wine sync.c include block")
           p.write_text(s.replace(old, new, 1))
           print("reordered sync.c includes for Wine makedep")
+          p = Path("build/ntdll-unix/server_ios.c")
+          s = p.read_text()
+          needle = "XP_MS( ru.ri_page_wait_time_mach - pru.ri_page_wait_time_mach )"
+          if needle not in s:
+              raise SystemExit("ERROR: expected unsupported page-wait diagnostic not found")
+          s = s.replace(needle, "0.0 /* unavailable in Xcode 16.4 SDK */", 1)
+          p.write_text(s)
+          print("disabled unavailable page-wait diagnostic for Xcode 16.4")
           PY
       - name: Build Wine (PE libs + generated headers)
         if: steps.winecache.outputs.cache-hit != 'true'
