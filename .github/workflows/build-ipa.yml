@@ -211,6 +211,14 @@ jobs:
           s = s.replace(needle, "/* skipped in the ARM64 dependency-only build */", 1)
           p.write_text(s)
           print("removed absent ARM64EC-only include from dependency build")
+          p = Path("wine/dlls/ntdll/unix/sync.c")
+          s = p.read_text()
+          old = '#include "../../../../build/madeira_cfg.h"   /* ml1122: before the Wine headers, which ban strncpy by macro */\n#include "config.h"'
+          new = '#include "config.h"\n#include "../../../../build/madeira_cfg.h"   /* ml1122: before the Wine headers, which ban strncpy by macro */'
+          if old not in s:
+              raise SystemExit("ERROR: unexpected Wine sync.c include block")
+          p.write_text(s.replace(old, new, 1))
+          print("reordered sync.c includes for Wine makedep")
           PY
       - name: Build Wine (PE libs + generated headers)
         if: steps.winecache.outputs.cache-hit != 'true'
