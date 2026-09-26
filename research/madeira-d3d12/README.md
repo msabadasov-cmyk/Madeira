@@ -393,7 +393,7 @@ because the shader cache key includes the compiler package.
 | Item | Value |
 | --- | --- |
 | Package | `research/GPTK/Metal Shader Converter 4.0 beta 2.pkg` |
-| SHA-256 | `1acc33c87ea663933df89721a998d066106685473020bcbe007cee7a16155734` |
+| SHA-256 | `0e7b6c83617a0b67905614579e82031d177ed49cfaacccb0aaef6ddadf19107c` |
 | Converter version | 4.0.1 |
 | macOS dylib | universal, 60 MB, used for the fast native loop |
 | iOS dylib | arm64, 30 MB, platform IOS, minos 13.0, sdk 26.4 |
