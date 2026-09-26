@@ -825,3 +825,67 @@ int64_t fex_test_execute(void) {
     running.store(false);
     return static_cast<int64_t>(exit_code);
 }
+
+
+/* Native iOS counterparts for FEX hooks that exist in the ARM64EC PE build.
+ * Wine's unix library owns these tables; never call PE exports from Mach-O. */
+#include "../../build/ntdll-unix/ios_mono_bridge.h"
+extern "C" {
+extern ios_mono_bridge g_ios_mono_bridge;
+int ios_subfloor_enum(int idx, unsigned long long *low,
+                      unsigned long long *real, unsigned long long *size);
+
+/* These two values enrich an allocation-failure diagnostic only. */
+uintptr_t ios_fex_band_base = 0;
+uintptr_t ios_fex_band_end = 0;
+
+uint64_t IosMonoResolveRW(uint64_t GuestAddr, uint64_t Size) {
+    if (!Size || GuestAddr > UINT64_MAX - Size) return 0;
+    const uint64_t GuestEnd = GuestAddr + Size;
+    ios_mono_bridge *B = &g_ios_mono_bridge;
+    const uint32_t Count = __atomic_load_n(&B->alias_count, __ATOMIC_ACQUIRE);
+    for (uint32_t i = 0; i < Count && i < IOS_MONO_MAX_ALIASES; i++) {
+        const uint32_t G1 = __atomic_load_n(&B->aliases[i].generation, __ATOMIC_ACQUIRE);
+        if (!(G1 & 1)) continue;
+        const uint64_t Base = B->aliases[i].guest_rx;
+        const uint64_t Span = B->aliases[i].size;
+        const uint64_t RW = B->aliases[i].host_rw;
+        const uint32_t G2 = __atomic_load_n(&B->aliases[i].generation, __ATOMIC_ACQUIRE);
+        if (G1 != G2 || Base > UINT64_MAX - Span) continue;
+        if (GuestAddr < Base || GuestEnd > Base + Span) continue;
+        const uint64_t Offset = GuestAddr - Base;
+        if (RW > UINT64_MAX - Offset) continue;
+        return RW + Offset;
+    }
+    return 0;
+}
+
+uint64_t IosSubfloorToReal(uint64_t Addr) {
+    unsigned long long Low, Real, Size;
+    for (int i = 0; ios_subfloor_enum(i, &Low, &Real, &Size); i++) {
+        if (Addr >= Low && Addr - Low < Size)
+            return (uint64_t)Real + (Addr - (uint64_t)Low);
+    }
+    return Addr;
+}
+
+void ios_fex_mono_count_helper(int Miss) {
+    ios_mono_bridge *B = &g_ios_mono_bridge;
+    __atomic_add_fetch(&B->n_helper_calls, 1, __ATOMIC_RELAXED);
+    if (Miss) __atomic_add_fetch(&B->n_alias_miss, 1, __ATOMIC_RELAXED);
+}
+
+/* Native FEX has no Windows PEB-aware consumer for these pending events, so
+ * keep that optional Mono block-activation optimisation disabled. */
+int ios_fex_mono_take_pending(uint64_t *BlockBegin, uint64_t *HostPC, uint64_t *FaultAddr) {
+    if (BlockBegin) *BlockBegin = 0;
+    if (HostPC) *HostPC = 0;
+    if (FaultAddr) *FaultAddr = 0;
+    return 0;
+}
+void ios_fex_mono_count_activated(void) {}
+uint64_t ios_fex_mono_captured_count(void) {
+    return __atomic_load_n(&g_ios_mono_bridge.n_captured, __ATOMIC_RELAXED);
+}
+int ios_fex_mono_bridge_armed(void) { return 0; }
+}
