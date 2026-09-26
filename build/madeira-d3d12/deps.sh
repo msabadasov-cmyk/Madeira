@@ -20,7 +20,7 @@ MSC_PKG="$REPO_ROOT/research/GPTK/Metal Shader Converter 4.0 beta 2.pkg"
 
 # Pinned in MADEIRA_NATIVE_D3D12_EXECUTION_DESIGN.md section 2. A different
 # package is a different compiler and invalidates every cached shader.
-MSC_PKG_SHA256="1acc33c87ea663933df89721a998d066106685473020bcbe007cee7a16155734"
+MSC_PKG_SHA256="0e7b6c83617a0b67905614579e82031d177ed49cfaacccb0aaef6ddadf19107c"
 
 if [[ ! -f "$MSC_PKG" ]]; then
     echo "deps: missing converter package:" >&2
