@@ -6,6 +6,12 @@ on:
       - main
     paths:
       - .github/workflows/build-ipa.yml
+      - app/Madeira/**
+      - build/**
+      - research/madeira-d3d12/**
+      - FEX
+      - wine
+      - research/dxmt
   workflow_dispatch:
 
 permissions:
@@ -28,6 +34,42 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Fetch and verify Apple's Metal Shader Converter
+        env:
+          MSC_ASSET_TOKEN: ${{ secrets.MSC_ASSET_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${MSC_ASSET_TOKEN:-}" ]]; then
+            echo "::error title=Missing MSC_ASSET_TOKEN::Add repository Actions secret MSC_ASSET_TOKEN using a fine-grained token with Contents: read access only to msabadasov-cmyk/madeira-apple-build-deps."
+            exit 1
+          fi
+          API="https://api.github.com/repos/msabadasov-cmyk/madeira-apple-build-deps"
+          RELEASE_JSON="$(curl --fail --silent --show-error \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer $MSC_ASSET_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$API/releases/tags/msc-4.0-beta-2")"
+          ASSET_ID="$(python3 -c 'import json,sys; name="Metal_Shader_Converter_4.0_beta_2.pkg"; data=json.load(sys.stdin); print(next((str(a["id"]) for a in data["assets"] if a["name"] == name), ""))' <<< "$RELEASE_JSON")"
+          if [[ -z "$ASSET_ID" ]]; then
+            echo "::error title=Missing MSC asset::The private release does not contain the expected Apple package."
+            exit 1
+          fi
+          mkdir -p research/GPTK
+          PKG="research/GPTK/Metal Shader Converter 4.0 beta 2.pkg"
+          curl --fail --silent --show-error --location \
+            -H 'Accept: application/octet-stream' \
+            -H "Authorization: Bearer $MSC_ASSET_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$API/releases/assets/$ASSET_ID" --output "$PKG"
+          EXPECTED="0e7b6c83617a0b67905614579e82031d177ed49cfaacccb0aaef6ddadf19107c"
+          ACTUAL="$(shasum -a 256 "$PKG" | awk '{print $1}')"
+          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+            echo "::error title=Wrong MSC package::The downloaded package does not match the pinned Apple package SHA-256."
+            exit 1
+          fi
+          pkgutil --check-signature "$PKG"
+          bash build/madeira-d3d12/fetch-converter.sh
 
       - name: Record component revisions
         id: revisions
@@ -628,7 +670,7 @@ jobs:
             build/dxmt-ios/obj
             build/dxmt-ios/libdxmt_combined.a
             build/dxmt-ios/pe-out
-          key: dxmt-${{ steps.revisions.outputs.dxmt }}-${{ hashFiles('build/dxmt-ios/**/*.c', 'build/dxmt-ios/**/*.cpp', 'build/dxmt-ios/**/*.mm', 'build/dxmt-ios/**/*.h', 'build/dxmt-ios/**/*.sh') }}-${{ env.CACHE_V }}
+          key: dxmt-${{ steps.revisions.outputs.dxmt }}-${{ hashFiles('research/GPTK/Metal Shader Converter 4.0 beta 2.pkg', 'build/dxmt-ios/**/*.c', 'build/dxmt-ios/**/*.cpp', 'build/dxmt-ios/**/*.mm', 'build/dxmt-ios/**/*.h', 'build/dxmt-ios/**/*.sh') }}-${{ env.CACHE_V }}
 
       - name: DXMT
         if: steps.dxmt.outputs.cache-hit != 'true'
