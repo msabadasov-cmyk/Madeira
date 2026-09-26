@@ -1,3 +1,21 @@
+
+#include <stdint.h>
+/* iOS host-side link adapters for FEXCore. Wine's native JIT map is the
+ * authoritative alias table; the copy in the ARM64EC PE DLL is separate. */
+extern "C" uint64_t ios_jit_reverse_translate(uint64_t Addr, uint64_t *ModuleBase);
+extern "C" uint64_t IosJitReverseTranslate(uint64_t Addr) {
+    const uint64_t PeAddr = ios_jit_reverse_translate(Addr, nullptr);
+    return PeAddr ? PeAddr : Addr;
+}
+
+/* These are diagnostic-only hooks whose backing code is Windows-only:
+ * Apple builds disable rpmalloc, and FFS counters live in PE assembly. */
+extern "C" uint64_t IosFfsBypassLog[4] = {};
+struct rpm_cas_snapshot;
+extern "C" int rpm_cas_snapshot_take(struct rpm_cas_snapshot *Out) {
+    (void)Out;
+    return 0;
+}
 // FEXBridge.mm - Bridge between iOS app and FEXCore
 // Handles JIT pool allocation, mmap hooks, and FEXCore initialization
 
